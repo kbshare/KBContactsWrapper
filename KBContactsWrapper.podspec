@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
 
 
   s.name         = "KBContactsWrapper"
-  s.version      = "0.0.2"
+  s.version      = "0.0.3"
   s.summary      = "request permission and select contacts"
 
 
