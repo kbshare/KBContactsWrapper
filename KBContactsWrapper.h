@@ -22,6 +22,10 @@ typedef void (^contact)(id contact);
 
 + (KBContactsWrapper *)shareInstance;
 
+/**
+ 获取所有联系人
+ */
++ (NSArray *)getContactsData;
 
 
 /**
@@ -30,6 +34,7 @@ typedef void (^contact)(id contact);
  @param contact 联系人
  */
 - (void)loadContact:(contact)contact;
+
 
 /**
  获取联系人
@@ -45,15 +50,19 @@ typedef void (^contact)(id contact);
  */
 - (void)permissionAndResultBlock:(void (^)(BOOL))resultBlock;
 
+/**
+是否有通讯录权限
+ */
+- (BOOL)isContactsAuthorized;
 
 /**
- 设置通讯录权限弹窗
+ ->设置->通讯录权限弹窗
  */
 - (void)settingContactPermission;
 
 
 /**
- 设置->权限
+ ->设置->权限
 
  @param permissionNeed 权限
  */

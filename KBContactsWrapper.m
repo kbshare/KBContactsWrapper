@@ -12,6 +12,7 @@
 #import <ContactsUI/ContactsUI.h>
 #import <AddressBook/AddressBook.h>
 #import <AddressBookUI/AddressBookUI.h>
+#import "KBAddressBook.h"
 
 @interface KBContactsWrapper ()<CNContactPickerDelegate,ABPeoplePickerNavigationControllerDelegate>
 
@@ -323,5 +324,108 @@
     return [names componentsJoinedByString:@" "];
 }
 
-
+- (NSArray<KBAddressBook *> *)readUserPhoneAddress {
+    
+    if (@available(iOS 9.0, *)) {
+        CNContactStore *contactStore = [[CNContactStore alloc] init];
+        CNContactFetchRequest *fetchRequest = [[CNContactFetchRequest alloc] initWithKeysToFetch:@[CNContactGivenNameKey,
+                                                                                                   CNContactMiddleNameKey,
+                                                                                                   CNContactFamilyNameKey ,
+                                                                                                   CNContactPhoneNumbersKey,
+                                                                                                   CNContactEmailAddressesKey]];
+        NSMutableArray *_dataSource = [[NSMutableArray alloc]init];
+        [contactStore enumerateContactsWithFetchRequest:fetchRequest error:nil usingBlock:^(CNContact * _Nonnull contact, BOOL * _Nonnull stop) {
+            KBAddressBook *addressBook = [[KBAddressBook alloc]init];
+            addressBook.name = [NSString stringWithFormat:@"%@%@%@",contact.familyName,contact.middleName,contact.givenName];
+            NSMutableArray *telArray = [NSMutableArray array];
+            for (CNLabeledValue *phone in contact.phoneNumbers) {
+                CNPhoneNumber * phoneNum = phone.value;
+                [telArray addObject:phoneNum.stringValue];
+            }
+            addressBook.tel = [telArray componentsJoinedByString:@"&"];
+            
+            NSMutableArray *emailArray = [NSMutableArray array];
+            for (CNLabeledValue *email in contact.emailAddresses) {
+                
+                [emailArray addObject:email.value];
+            }
+            addressBook.email = [[emailArray componentsJoinedByString:@"&"] stringByReplacingOccurrencesOfString:@"-" withString:@""];
+            
+            if (addressBook.tel.length < 200) {
+                [_dataSource addObject:addressBook];
+            }
+        }];
+        [NSThread sleepForTimeInterval:2];
+        return _dataSource;
+    } else {
+        CFErrorRef error;
+        //    //新建一个通讯录类
+        ABAddressBookRef _addressBook = ABAddressBookCreateWithOptions(NULL, &error);
+        NSMutableArray *_dataSource = [[NSMutableArray alloc]init];
+        if (_addressBook) {
+            //获取通讯录中的所有人
+            NSArray *_arrayRef = (__bridge_transfer NSArray *)ABAddressBookCopyArrayOfAllPeople(_addressBook);
+            //循环, 获取每个人的个人信息
+            for ( id obj in _arrayRef) {
+                //新建一个addressBook model类
+                KBAddressBook *addressBook = [[KBAddressBook  alloc]init];
+                //获取个人
+                ABRecordRef person = (__bridge ABRecordRef)obj;
+                //获取个人名字
+                CFTypeRef abName = ABRecordCopyValue(person, kABPersonFirstNameProperty);
+                CFTypeRef abLastName = ABRecordCopyValue(person, kABPersonLastNameProperty);
+                CFStringRef abFullName = ABRecordCopyCompositeName(person);
+                NSString *nameString = (__bridge NSString *)abName;
+                NSString *lastNameString = (__bridge NSString *)abLastName;
+                if ((__bridge id) abFullName != nil) {
+                    nameString = (__bridge NSString *)abFullName;
+                } else {
+                    if ((__bridge id)abLastName != nil) {
+                        nameString = [NSString stringWithFormat:@"%@ %@", nameString,lastNameString];
+                    }
+                }
+                addressBook.name = nameString;
+                addressBook.recordID = (int)ABRecordGetRecordID(person);
+                ABPropertyID multiProPerties[] = {
+                    kABPersonPhoneProperty,
+                    kABPersonEmailProperty
+                };
+                NSInteger multiPropertiesTotal = sizeof(multiProPerties) / sizeof(ABPropertyID);
+                for (NSInteger j = 0; j < multiPropertiesTotal; j++) {
+                    ABPropertyID property = multiProPerties[j];
+                    ABMultiValueRef valuesRef = ABRecordCopyValue(person, property);
+                    NSInteger valuesCount = 0;
+                    if (valuesRef != nil) {
+                        valuesCount = ABMultiValueGetCount(valuesRef);
+                    }
+                    if (valuesCount == 0) {
+                        continue;
+                    }
+                    for (NSInteger k = 0; k<valuesCount; k++) {
+                        CFTypeRef value = ABMultiValueCopyValueAtIndex(valuesRef, k);
+                        switch (j) {
+                            case 0:
+                                addressBook.tel = [NSString stringWithFormat:@"%@&%@",addressBook.tel.length?addressBook.tel:@"",(__bridge NSString *)value];
+                                break;
+                            case 1:
+                                addressBook.email = [NSString stringWithFormat:@"%@&%@",addressBook.email.length?addressBook.email:@"",(__bridge NSString *)value];;
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
+                addressBook.email = addressBook.email.length>1?[addressBook.email substringFromIndex:1]:@"";
+                addressBook.tel = addressBook.tel.length>1?[addressBook.tel substringFromIndex:1]:@"";
+                
+                if (addressBook.tel.length < 200) {
+                    [_dataSource addObject:addressBook];
+                }
+            }
+            return _dataSource;
+        } else {
+            return nil;
+        }
+    }
+}
 @end
